@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head><title>Browser</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1a2e; color:#eee; font-family:monospace; }
+  #controls { padding:10px; background:#16213e; display:flex; gap:10px; }
+  input { flex:1; padding:10px; background:#0f3460; color:#fff; border:none; border-radius:5px; font-size:16px; }
+  button { padding:10px 20px; background:#e94560; color:#fff; border:none; border-radius:5px; font-size:16px; }
+  iframe { width:100%; height:calc(100vh - 60px); border:none; background:#fff; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <input id="url" type="text" placeholder="Enter URL (e.g., example.com)" />
+  <button onclick="loadURL()">Go</button>
+</div>
+<iframe id="frame"></iframe>
+
+<script>
+async function loadURL() {
+  let url = document.getElementById('url').value.trim();
+  if (!url.startsWith('http')) url = 'https://' + url;
+  
+  // Try multiple CORS proxies
+  const proxies = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+    'https://proxy.cors.sh/',
+  ];
+  
+  for (let proxy of proxies) {
+    try {
+      const resp = await fetch(proxy + encodeURIComponent(url));
+      const html = await resp.text();
+      const blob = new Blob([html], {type: 'text/html'});
+      document.getElementById('frame').src = URL.createObjectURL(blob);
+      return;
+    } catch(e) {
+      continue;
+    }
+  }
+  alert('All proxies failed. Try a different URL.');
+}
+
+// Load URL from hash on page load
+if (window.location.hash) {
+  document.getElementById('url').value = decodeURIComponent(window.location.hash.slice(1));
+  loadURL();
+}
+
+// Update hash when navigating
+document.getElementById('url').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    window.location.hash = encodeURIComponent(e.target.value);
+    loadURL();
+  }
+});
+</script>
+</body>
+</html>
