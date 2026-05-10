@@ -1,60 +1,68 @@
 <!DOCTYPE html>
 <html>
-<head><title>Browser</title>
+<head><title>Proxy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#1a1a2e; color:#eee; font-family:monospace; }
-  #controls { padding:10px; background:#16213e; display:flex; gap:10px; }
-  input { flex:1; padding:10px; background:#0f3460; color:#fff; border:none; border-radius:5px; font-size:16px; }
-  button { padding:10px 20px; background:#e94560; color:#fff; border:none; border-radius:5px; font-size:16px; }
-  iframe { width:100%; height:calc(100vh - 60px); border:none; background:#fff; }
+  body{margin:0;font-family:system-ui;background:#111;color:#fff}
+  #bar{display:flex;padding:8px;background:#1a1a1a}
+  #url{flex:1;padding:8px;background:#222;color:#fff;border:1px solid #333;border-radius:4px;font-size:16px}
+  #btn{padding:8px 12px;margin-left:4px;background:#333;color:#fff;border:none;border-radius:4px}
+  iframe{width:100%;height:calc(100vh - 50px);border:none;background:#fff}
 </style>
 </head>
 <body>
-<div id="controls">
-  <input id="url" type="text" placeholder="Enter URL (e.g., example.com)" />
-  <button onclick="loadURL()">Go</button>
+<div id="bar">
+  <input id="url" type="text" placeholder="https://example.com" value="https://en.wikipedia.org">
+  <button id="btn" onclick="load()">Go</button>
 </div>
 <iframe id="frame"></iframe>
 
 <script>
-async function loadURL() {
-  let url = document.getElementById('url').value.trim();
-  if (!url.startsWith('http')) url = 'https://' + url;
-  
-  // Try multiple CORS proxies
-  const proxies = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://proxy.cors.sh/',
+function load() {
+  const url = document.getElementById('url').value;
+  // Try multiple free public web proxies that work via iframe
+  const proxyServices = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    `https://cors-anywhere.herokuapp.com/${url}`,
+    `https://cors.bridged.cc/${url}`,
+    `https://thingproxy.freeboard.io/fetch/${url}`,
   ];
   
-  for (let proxy of proxies) {
-    try {
-      const resp = await fetch(proxy + encodeURIComponent(url));
-      const html = await resp.text();
-      const blob = new Blob([html], {type: 'text/html'});
-      document.getElementById('frame').src = URL.createObjectURL(blob);
-      return;
-    } catch(e) {
-      continue;
+  // Try direct iframe first (some sites allow it)
+  document.getElementById('frame').src = url;
+  
+  // Fallback: fetch via proxy and display
+  setTimeout(async () => {
+    for (let proxy of proxyServices) {
+      try {
+        const r = await fetch(proxy);
+        const html = await r.text();
+        const blob = new Blob([rewriteLinks(html, url)], {type: 'text/html'});
+        document.getElementById('frame').src = URL.createObjectURL(blob);
+        return;
+      } catch(e) {}
     }
-  }
-  alert('All proxies failed. Try a different URL.');
+    // Last resort: try through Google Translate proxy
+    document.getElementById('frame').src = 
+      `https://translate.google.com/translate?hl=en&u=${encodeURIComponent(url)}`;
+  }, 2000);
 }
 
-// Load URL from hash on page load
-if (window.location.hash) {
-  document.getElementById('url').value = decodeURIComponent(window.location.hash.slice(1));
-  loadURL();
+function rewriteLinks(html, baseURL) {
+  // Fix relative URLs
+  const base = new URL(baseURL);
+  return html.replace(/(href|src|action)=["'](?!https?:\/\/|\/\/|#|javascript:|data:|mailto:)([^"']+)["']/gi,
+    (m, attr, path) => {
+      try { return `${attr}="${new URL(path, base).href}"`; }
+      catch { return m; }
+    }
+  );
 }
 
-// Update hash when navigating
-document.getElementById('url').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    window.location.hash = encodeURIComponent(e.target.value);
-    loadURL();
-  }
+document.getElementById('url').addEventListener('keypress', e => {
+  if (e.key === 'Enter') load();
 });
 </script>
 </body>
